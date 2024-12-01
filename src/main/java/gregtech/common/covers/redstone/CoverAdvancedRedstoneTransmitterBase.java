@@ -75,7 +75,19 @@ public abstract class CoverAdvancedRedstoneTransmitterBase<T extends CoverAdvanc
         // just in case something on player attach changes
         super.onPlayerAttach(player, aCover, aTileEntity, side);
         // test theory
+        GTUtility.sendChatToPlayer(
+            player,
+            String.format(
+                "tile entity had on side %s the redstone signal: %d",
+                side.name(),
+                aTileEntity.getOutputRedstoneSignal(side)));
         aTileEntity.setOutputRedstoneSignal(side, (byte) 0);
+        GTUtility.sendChatToPlayer(
+            player,
+            String.format(
+                "tile entity now has on side %s the redstone signal: %d",
+                side.name(),
+                aTileEntity.getOutputRedstoneSignal(side)));
     }
 
     public static class TransmitterData extends CoverAdvancedWirelessRedstoneBase.WirelessData {
