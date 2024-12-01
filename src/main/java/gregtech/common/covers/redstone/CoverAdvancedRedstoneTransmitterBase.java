@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.ForgeDirection;
@@ -69,6 +70,14 @@ public abstract class CoverAdvancedRedstoneTransmitterBase<T extends CoverAdvanc
         }
     }
 
+    @Override
+    public void onPlayerAttach(EntityPlayer player, ItemStack aCover, ICoverable aTileEntity, ForgeDirection side) {
+        // just in case something on player attach changes
+        super.onPlayerAttach(player, aCover, aTileEntity, side);
+        // test theory
+        aTileEntity.setOutputRedstoneSignal(side, (byte) 0);
+    }
+
     public static class TransmitterData extends CoverAdvancedWirelessRedstoneBase.WirelessData {
 
         protected boolean invert;
@@ -123,6 +132,7 @@ public abstract class CoverAdvancedRedstoneTransmitterBase<T extends CoverAdvanc
 
             return this;
         }
+
     }
 
     // GUI stuff
