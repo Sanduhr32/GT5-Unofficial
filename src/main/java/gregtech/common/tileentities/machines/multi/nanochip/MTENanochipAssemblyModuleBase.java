@@ -33,6 +33,12 @@ import com.gtnewhorizon.structurelib.alignment.constructable.ISurvivalConstructa
 import com.gtnewhorizon.structurelib.structure.ISurvivalBuildEnvironment;
 import com.gtnewhorizon.structurelib.structure.StructureDefinition;
 
+import appeng.api.config.Actionable;
+import appeng.api.networking.security.IActionHost;
+import appeng.api.networking.security.MachineSource;
+import appeng.api.storage.data.IAEFluidStack;
+import appeng.me.GridAccessException;
+import appeng.util.item.AEFluidStack;
 import gregtech.api.casing.Casings;
 import gregtech.api.enums.Textures;
 import gregtech.api.interfaces.IHatchElement;
@@ -42,6 +48,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.ICasingTextureProvider;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.logic.ProcessingLogic;
+import gregtech.api.metatileentity.MetaTileEntity;
 import gregtech.api.metatileentity.implementations.MTEExtendedPowerMultiBlockBase;
 import gregtech.api.modularui2.GTGuiTheme;
 import gregtech.api.modularui2.GTGuiThemes;
@@ -62,6 +69,7 @@ import gregtech.api.util.shutdown.ShutDownReasonRegistry;
 import gregtech.api.util.shutdown.SimpleShutDownReason;
 import gregtech.common.gui.modularui.multiblock.MTENanochipAssemblyModuleBaseGui;
 import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
+import gregtech.common.tileentities.machines.MTEHatchInputME;
 import gregtech.common.tileentities.machines.multi.nanochip.hatches.MTEHatchNanochipRedstone;
 import gregtech.common.tileentities.machines.multi.nanochip.hatches.MTEHatchVacuumConveyor;
 import gregtech.common.tileentities.machines.multi.nanochip.hatches.MTEHatchVacuumConveyorInput;
@@ -404,6 +412,41 @@ public abstract class MTENanochipAssemblyModuleBase<T extends MTEExtendedPowerMu
     protected GTRecipe findRecipe(List<ItemStack> inputs) {
         RecipeMap<?> recipeMap = this.getRecipeMap();
         this.fluidInputs = getStoredFluids().toArray(new FluidStack[0]);
+
+        List<MTEHatchInputME> meInputs = mInputHatches.stream()
+            .filter(MetaTileEntity::isValid)
+            .filter(hatch -> hatch instanceof MTEHatchInputME)
+            .map(hatch -> (MTEHatchInputME) hatch)
+            .filter(MTEHatchInputME::isActive)
+            .toList();
+
+        var first = (meInputs.isEmpty() ? null : meInputs.get(0));
+        if (first != null) {
+            try {
+                var storage = first.getProxy()
+                    .getStorage()
+                    .getFluidInventory();
+                List<FluidStack> stacks = new ArrayList<>();
+                for (FluidStack fStack : fluidInputs) {
+                    IAEFluidStack request = AEFluidStack.create(fStack)
+                        .setStackSize(Long.MAX_VALUE);
+                    var result = storage.extractItems(
+                        request,
+                        Actionable.SIMULATE,
+                        new MachineSource((IActionHost) getBaseMetaTileEntity()));
+                    var resAmount = result.getStackSize();
+                    while (resAmount > Integer.MAX_VALUE) {
+                        stacks.add(fStack.copy());
+                        resAmount -= Integer.MAX_VALUE;
+                    }
+                    var copy = fStack.copy();
+                    copy.amount = (int) resAmount;
+                    stacks.add(copy);
+                }
+                this.fluidInputs = stacks.toArray(new FluidStack[0]);
+            } catch (GridAccessException ignored) {}
+        }
+
         return recipeMap.findRecipeQuery()
             .items(inputs.toArray(new ItemStack[0]))
             .fluids(fluidInputs)
