@@ -51,6 +51,12 @@ import com.gtnewhorizon.structurelib.structure.IStructureDefinition;
 import com.gtnewhorizon.structurelib.structure.ISurvivalBuildEnvironment;
 import com.gtnewhorizon.structurelib.structure.StructureDefinition;
 
+import appeng.api.config.Actionable;
+import appeng.api.networking.security.IActionHost;
+import appeng.api.networking.security.MachineSource;
+import appeng.api.storage.data.IAEFluidStack;
+import appeng.me.GridAccessException;
+import appeng.util.item.AEFluidStack;
 import gregtech.api.casing.Casings;
 import gregtech.api.enums.Materials;
 import gregtech.api.enums.OrePrefixes;
@@ -61,6 +67,7 @@ import gregtech.api.interfaces.tileentity.ICasingTextureProvider;
 import gregtech.api.interfaces.tileentity.IGregTechDeviceInformation;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.logic.ProcessingLogic;
+import gregtech.api.metatileentity.MetaTileEntity;
 import gregtech.api.metatileentity.implementations.MTEExtendedPowerMultiBlockBase;
 import gregtech.api.modularui2.GTGuiTextures;
 import gregtech.api.objects.XSTR;
@@ -74,6 +81,7 @@ import gregtech.api.util.GTUtility;
 import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
 import gregtech.common.misc.GTStructureChannels;
+import gregtech.common.tileentities.machines.MTEHatchInputME;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import mcp.mobius.waila.api.IWailaConfigHandler;
 import mcp.mobius.waila.api.IWailaDataAccessor;
@@ -250,20 +258,44 @@ public class MTEIntegratedOreFactory extends MTEExtendedPowerMultiBlockBase<MTEI
         }
 
         ArrayList<ItemStack> inputItem = getStoredInputs();
-        ArrayList<FluidStack> inputFluid = getStoredFluids();
-        if (inputItem.isEmpty() || inputFluid.isEmpty()) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-        final int maxParallelFromPower = GTUtility.safeInt(getMaxInputEu() / RECIPE_EUT);
+        ArrayList<FluidStack> inputFluids = getStoredFluids();
+        List<MTEHatchInputME> meInputs = mInputHatches.stream()
+            .filter(MetaTileEntity::isValid)
+            .filter(hatch -> hatch instanceof MTEHatchInputME)
+            .map(hatch -> (MTEHatchInputME) hatch)
+            .filter(
+                hatch -> hatch.getProxy()
+                    .isReady())
+            .toList();
 
         long lubricantAmount = 0L;
         long waterAmount = 0L;
 
-        for (FluidStack fluid : inputFluid) {
-            if (fluid == null) continue;
-            if (fluid.equals(GTModHandler.getDistilledWater(1L))) waterAmount += fluid.amount;
-            else if (fluid.equals(Materials.Lubricant.getFluid(1L))) lubricantAmount += fluid.amount;
+        var first = (meInputs.isEmpty() ? null : meInputs.get(0));
+        if (first != null) {
+            try {
+                var storage = first.getProxy()
+                    .getStorage()
+                    .getFluidInventory();
+                for (FluidStack fStack : inputFluids) {
+                    IAEFluidStack request = AEFluidStack.create(fStack)
+                        .setStackSize(Long.MAX_VALUE);
+                    var result = storage.extractItems(
+                        request,
+                        Actionable.SIMULATE,
+                        new MachineSource((IActionHost) getBaseMetaTileEntity()));
+                    var resAmount = result.getStackSize();
+
+                    if (fStack.equals(GTModHandler.getDistilledWater(1L))) waterAmount += resAmount;
+                    else if (fStack.equals(Materials.Lubricant.getFluid(1L))) lubricantAmount += resAmount;
+
+                }
+            } catch (GridAccessException ignored) {}
         }
+        if (inputItem.isEmpty() || inputFluids.isEmpty()) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+        final int maxParallelFromPower = GTUtility.safeInt(getMaxInputEu() / RECIPE_EUT);
 
         final long parallelFromFluids = Math.min(lubricantAmount / LUBRICANT_PER_ORE, waterAmount / WATER_PER_ORE);
         if (parallelFromFluids <= 0) {

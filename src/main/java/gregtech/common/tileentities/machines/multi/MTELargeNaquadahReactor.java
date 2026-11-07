@@ -70,6 +70,7 @@ public class MTELargeNaquadahReactor extends TTMultiblockBase
     private static final int COOLANT_AMT_LOW = 20;
     private static final int EXCITED_AMT_HIGH = 180;
     private static final int EXCITED_AMT_LOW = 20;
+    private static int count = 1000;
 
     private static final int OFFSET_X = 3;
     private static final int OFFSET_Y = 10;
@@ -81,6 +82,7 @@ public class MTELargeNaquadahReactor extends TTMultiblockBase
     protected FluidStack lockedFluid = null;
     protected int times = 1;
     protected int basicOutput;
+    protected int instanceId;
 
     private static List<Pair<FluidStack, Integer>> excitedLiquid;
 
@@ -148,6 +150,8 @@ public class MTELargeNaquadahReactor extends TTMultiblockBase
 
     public MTELargeNaquadahReactor(String name) {
         super(name);
+        count++;
+        instanceId = count;
     }
 
     public MTELargeNaquadahReactor(int id, String name, String nameRegional) {
@@ -187,6 +191,17 @@ public class MTELargeNaquadahReactor extends TTMultiblockBase
     @Override
     protected boolean filtersFluid() {
         return false;
+    }
+
+    @Override
+    protected boolean cyclicUpdate_EM() {
+        return mUpdate % instanceId <= -24000;
+    }
+
+    @Override
+    public void onBlockDestroyed() {
+        super.onBlockDestroyed();
+        count--;
     }
 
     @Override
